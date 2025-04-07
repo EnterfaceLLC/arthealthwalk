@@ -1,41 +1,84 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, StyleSheet, Alert, ScrollView } from "react-native";
+import {
+  View,
+  Text,
+  Alert,
+  ScrollView,
+  TouchableOpacity,
+  Image,
+  Modal,
+} from "react-native";
 import * as Location from "expo-location";
 import { Pedometer } from "expo-sensors";
+import { Stack } from "expo-router";
+
+// Styles
+import { styles } from "../styles/scrnStyles/index";
+
+//Interfaces
+import { Artwork, Coordinates, ArtDetailModalProps } from "../types/artwork";
 
 // Art locations with coordinates (50 feet = ~0.0095 miles)
-const ART_LOCATIONS = [
-  {
-    id: 1,
-    name: "Sunset Mural",
-    artist: "Jane Doe",
-    coords: { latitude: 34.0522, longitude: -118.2437 },
-    triggerDistance: 0.0095, // 50 feet in miles
-    visited: false,
-  },
-  {
-    id: 2,
-    name: "Casa de Zamora",
-    artist: "Rogelio ZamZam",
-    coords: { latitude: 38.9797, longitude: -95.7198 },
-    triggerDistance: 0.0095, // 50 feet in miles
-    visited: false,
-  },
-  // Add more artworks...
-];
+import ART_LOCATIONS from "../../assets/mock/public_art.json";
+
+// Art Detail Modal Component
+const ArtDetailModal: React.FC<ArtDetailModalProps> = ({
+  visible,
+  art,
+  onClose,
+}) => {
+  if (!art) return null;
+
+  return (
+    <Modal
+      animationType="slide"
+      transparent={false}
+      visible={visible}
+      onRequestClose={onClose}
+    >
+      <ScrollView contentContainerStyle={styles.modalContainer}>
+        <View style={styles.modalHeader}>
+          <Text style={styles.modalTitle}>{art.name}</Text>
+          <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+            <Text style={styles.closeButtonText}>✕</Text>
+          </TouchableOpacity>
+        </View>
+
+        {art.image && (
+          <Image
+            source={{ uri: art.image }}
+            style={styles.artImage}
+            resizeMode="cover"
+          />
+        )}
+
+        <Text style={styles.artDetailArtist}>By {art.artist}</Text>
+        <Text style={styles.artDescription}>{art.description}</Text>
+
+        <TouchableOpacity style={styles.closeModalButton} onPress={onClose}>
+          <Text style={styles.closeModalButtonText}>Close</Text>
+        </TouchableOpacity>
+      </ScrollView>
+    </Modal>
+  );
+};
 
 export default function ArtHealthWalk() {
   // Step counter state
   const [currentStepCount, setCurrentStepCount] = useState(0);
   const [isPedometerAvailable, setIsPedometerAvailable] = useState(false);
-  const [stepGoal] = useState(1000); // Daily goal
+  const [stepGoal] = useState(100); // Daily goal
 
   // Location state
-  const [nearestArt, setNearestArt] = useState(null);
-  const [visitedArt, setVisitedArt] = useState([]);
+  const [nearestArt, setNearestArt] = useState<Artwork | null>(null);
+  const [visitedArt, setVisitedArt] = useState<Artwork[]>([]);
+
+  // Modal state
+  const [selectedArt, setSelectedArt] = useState<Artwork | null>(null);
+  const [modalVisible, setModalVisible] = useState(false);
 
   // Check if user is within 50 feet of artwork
-  const isWithin50Feet = (loc1, loc2) => {
+  const isWithin50Feet = (loc1: Coordinates, loc2: Coordinates): boolean => {
     const latDiff = loc2.latitude - loc1.latitude;
     const lonDiff = loc2.longitude - loc1.longitude;
     const distanceInMiles =
@@ -63,7 +106,7 @@ export default function ArtHealthWalk() {
 
   // Initialize location tracking
   useEffect(() => {
-    let locationSubscription;
+    let locationSubscription: Location.LocationSubscription;
 
     const startTracking = async () => {
       const { status } = await Location.requestForegroundPermissionsAsync();
@@ -83,20 +126,22 @@ export default function ArtHealthWalk() {
         },
         (location) => {
           const userCoords = location.coords;
-          let foundArt = null;
+          let foundArt: Artwork | undefined;
 
           // Check if user is near any artwork
           ART_LOCATIONS.forEach((art) => {
             if (isWithin50Feet(userCoords, art.coords)) {
-              foundArt = {
-                id: art.id,
-                name: art.name,
-                artist: art.artist,
-              };
+              // Find full art details from ART_LOCATIONS
+              const fullArtDetails = ART_LOCATIONS.find((a) => a.id === art.id);
+              if (!fullArtDetails) return; // Early return if undefined
+
+              foundArt = fullArtDetails;
 
               // If this is a new art discovery, add to visited list
               if (!visitedArt.some((item) => item.id === art.id)) {
-                setVisitedArt((prev) => [...prev, foundArt]);
+                if (fullArtDetails) {
+                  setVisitedArt((prev) => [...prev, fullArtDetails]);
+                }
 
                 // Alert user about art discovery and encourage walking
                 const remainingSteps = Math.max(0, stepGoal - currentStepCount);
@@ -105,7 +150,13 @@ export default function ArtHealthWalk() {
                   `You've found "${foundArt.name}" by ${foundArt.artist}!\n\n` +
                     `You've walked ${currentStepCount} steps today.\n` +
                     `${remainingSteps} more steps to reach your daily goal.`,
-                  [{ text: "Continue Exploring" }]
+                  [
+                    {
+                      text: "View Details",
+                      onPress: () => showArtDetail(fullArtDetails),
+                    },
+                    { text: "Continue Exploring" },
+                  ]
                 );
               }
             }
@@ -123,6 +174,17 @@ export default function ArtHealthWalk() {
     startTracking();
     return () => locationSubscription?.remove();
   }, [nearestArt, visitedArt, currentStepCount]);
+
+  // Show art detail modal
+  const showArtDetail = (art: Artwork) => {
+    setSelectedArt(art);
+    setModalVisible(true);
+  };
+
+  // Close art detail modal
+  const closeArtDetail = () => {
+    setModalVisible(false);
+  };
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
@@ -162,11 +224,15 @@ export default function ArtHealthWalk() {
       <View style={styles.artSection}>
         <Text style={styles.sectionTitle}>Nearby Art</Text>
         {nearestArt ? (
-          <View style={styles.artCard}>
+          <TouchableOpacity
+            style={styles.artCard}
+            onPress={() => showArtDetail(nearestArt)}
+          >
             <Text style={styles.artName}>{nearestArt.name}</Text>
             <Text style={styles.artArtist}>by {nearestArt.artist}</Text>
             <Text style={styles.proximityText}>You are within 50 feet!</Text>
-          </View>
+            <Text style={styles.viewDetailsText}>Tap to view details</Text>
+          </TouchableOpacity>
         ) : (
           <Text style={styles.hint}>
             Walk around to discover public art nearby
@@ -181,114 +247,52 @@ export default function ArtHealthWalk() {
         </Text>
         {visitedArt.length > 0 ? (
           visitedArt.map((art) => (
-            <View key={art.id} style={styles.historyItem}>
-              <Text style={styles.historyItemText}>
-                {art.name} by {art.artist}
-              </Text>
-            </View>
+            <TouchableOpacity
+              key={art.id}
+              style={styles.historyItem}
+              onPress={() => showArtDetail(art)}
+            >
+              <View style={styles.historyItemContent}>
+                {art.image && (
+                  <Image
+                    source={{ uri: art?.image }}
+                    style={styles.historyItemImage}
+                  />
+                )}
+                <View style={styles.historyItemText}>
+                  <Text style={styles.historyItemTitle}>{art.name}</Text>
+                  <Text style={styles.historyItemArtist}>by {art.artist}</Text>
+                  <Text style={styles.viewDetailsText}>
+                    Tap to view details
+                  </Text>
+                </View>
+              </View>
+            </TouchableOpacity>
           ))
         ) : (
           <Text style={styles.hint}>Start walking to discover art!</Text>
         )}
       </View>
+
+      {/* Art Detail Modal */}
+      <ArtDetailModal
+        visible={modalVisible}
+        art={selectedArt}
+        onClose={closeArtDetail}
+      />
+
+      <Stack.Screen
+        options={{
+          title: "Art Health Walk 2.0",
+          headerStyle: {
+            backgroundColor: "#AB274F",
+          },
+          headerTintColor: "#fff",
+          headerTitleStyle: {
+            fontWeight: "bold",
+          },
+        }}
+      />
     </ScrollView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    padding: 20,
-    paddingTop: 60,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: "bold",
-    marginBottom: 20,
-    textAlign: "center",
-  },
-  stepSection: {
-    marginBottom: 30,
-  },
-  artSection: {
-    marginBottom: 30,
-  },
-  historySection: {
-    marginBottom: 30,
-  },
-  metricContainer: {
-    backgroundColor: "#f5f5f5",
-    padding: 20,
-    borderRadius: 10,
-    alignItems: "center",
-  },
-  metricLabel: {
-    fontSize: 16,
-    color: "#666",
-  },
-  stepCount: {
-    fontSize: 42,
-    fontWeight: "bold",
-    color: "#2ecc71",
-    marginVertical: 5,
-  },
-  goalText: {
-    fontSize: 16,
-    color: "#666",
-  },
-  progressBar: {
-    height: 10,
-    width: "100%",
-    backgroundColor: "#e0e0e0",
-    borderRadius: 5,
-    marginTop: 10,
-    overflow: "hidden",
-  },
-  progressFill: {
-    height: "100%",
-    backgroundColor: "#2ecc71",
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    marginBottom: 15,
-  },
-  artCard: {
-    backgroundColor: "#f0f8ff",
-    padding: 15,
-    borderRadius: 10,
-    borderLeftWidth: 5,
-    borderLeftColor: "#3498db",
-  },
-  artName: {
-    fontSize: 18,
-    fontWeight: "bold",
-  },
-  artArtist: {
-    fontSize: 16,
-    color: "#666",
-    marginBottom: 5,
-  },
-  proximityText: {
-    color: "#3498db",
-    fontWeight: "bold",
-  },
-  historyItem: {
-    padding: 15,
-    backgroundColor: "#f5f5f5",
-    marginBottom: 10,
-    borderRadius: 8,
-  },
-  historyItemText: {
-    fontSize: 16,
-  },
-  hint: {
-    fontSize: 16,
-    color: "#666",
-    fontStyle: "italic",
-  },
-  error: {
-    fontSize: 16,
-    color: "#e74c3c",
-    marginTop: 10,
-  },
-});

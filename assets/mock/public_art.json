@@ -1,0 +1,42 @@
+[
+  {
+    "id": 1,
+    "name": "Sunset Mural",
+    "artist": "Jane Doe",
+    "description": "The Sunset Mural is a vibrant piece of public art located in downtown Topeka, KS. It features a stunning sunset scene with warm colors and intricate details.",
+    "image": "https://cdn.pixabay.com/photo/2024/09/19/20/24/day-of-the-dead-9059660_1280.png",
+    "coords": { "latitude": 34.0522, "longitude": -118.2437 },
+    "triggerDistance": 0.0095,
+    "visited": false
+  },
+  {
+    "id": 2,
+    "name": "Casa de Zamora",
+    "artist": "Rogii Zamo",
+    "description": "Casa de Zamora is a mural located in the heart of Topeka, KS. It was created by artist Rogii Zamo and features vibrant colors and intricate designs that reflect the rich cultural heritage of the area.",
+    "image": "https://cdn.pixabay.com/photo/2024/09/19/20/24/day-of-the-dead-9059660_1280.png",
+    "coords": { "latitude": 38.9797, "longitude": -95.7198 },
+    "triggerDistance": 0.0095,
+    "visited": false
+  },
+  {
+    "id": 3,
+    "name": "Los Abuelos",
+    "artist": "MistyJohn Geezus",
+    "description": "Los Abuelos is a sculptor located in the heart of Topeka, KS. It was created by artists Misty and John Gee and features vibrant colors and intricate designs that reflect the rich cultural heritage of the legacy area.",
+    "image": "https://cdn.pixabay.com/photo/2024/09/19/20/24/day-of-the-dead-9059660_1280.png",
+    "coords": { "latitude": 38.9813, "longitude": -95.7191 },
+    "triggerDistance": 0.0095,
+    "visited": false
+  },
+  {
+    "id": 4,
+    "name": "Dirty Road",
+    "artist": "Earth",
+    "description": "Dirty Road is a dirt road located at the edge of Misty Harbor in Topeka, KS. It was created by earth and features dull colors, natural design that reflect the rich dirt of the area.",
+    "image": "https://cdn.pixabay.com/photo/2024/09/19/20/24/day-of-the-dead-9059660_1280.png",
+    "coords": { "latitude": 38.9788, "longitude": -95.7197 },
+    "triggerDistance": 0.0095,
+    "visited": false
+  }
+]
