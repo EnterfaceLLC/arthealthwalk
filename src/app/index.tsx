@@ -7,6 +7,8 @@ import {
   TouchableOpacity,
   Image,
   Modal,
+  Platform,
+  PermissionsAndroid,
 } from "react-native";
 import * as Location from "expo-location";
 import { Pedometer } from "expo-sensors";
@@ -68,6 +70,8 @@ export default function ArtHealthWalk() {
   const [currentStepCount, setCurrentStepCount] = useState(0);
   const [isPedometerAvailable, setIsPedometerAvailable] = useState(false);
   const [stepGoal] = useState(100); // Daily goal
+  const [pedometerPermissionGranted, setPedometerPermissionGranted] =
+    useState(false);
 
   // Location state
   const [nearestArt, setNearestArt] = useState<Artwork | null>(null);
@@ -86,18 +90,73 @@ export default function ArtHealthWalk() {
     return distanceInMiles <= 0.0095; // 50 feet threshold
   };
 
+  // Request Android activity recognition permission
+  const requestActivityPermission = async () => {
+    if (Platform.OS !== "android") {
+      // iOS doesn't need explicit permission for pedometer
+      return true;
+    }
+
+    try {
+      const granted = await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.ACTIVITY_RECOGNITION,
+        {
+          title: "Activity Recognition Permission",
+          message:
+            "This app needs access to your physical activity to count steps while you explore art.",
+          buttonNeutral: "Ask Me Later",
+          buttonNegative: "Cancel",
+          buttonPositive: "OK",
+        }
+      );
+
+      if (granted === PermissionsAndroid.RESULTS.GRANTED) {
+        console.log("Activity recognition permission granted");
+        setPedometerPermissionGranted(true);
+        return true;
+      } else {
+        console.log("Activity recognition permission denied");
+        Alert.alert(
+          "Limited Functionality",
+          "Step counting will not work without activity permission. You can still discover art."
+        );
+        return false;
+      }
+    } catch (err) {
+      console.warn("Error requesting activity permission:", err);
+      return false;
+    }
+  };
+
   // Initialize pedometer
   useEffect(() => {
     const setupPedometer = async () => {
       const isAvailable = await Pedometer.isAvailableAsync();
       setIsPedometerAvailable(isAvailable);
 
-      if (isAvailable) {
+      if (!isAvailable) {
+        console.log("Pedometer is not available on this device");
+        return;
+      }
+
+      // Request permissions if needed (Android only)
+      if (Platform.OS === "android") {
+        const permissionGranted = await requestActivityPermission();
+        if (!permissionGranted) {
+          return;
+        }
+      }
+
+      try {
         const subscription = Pedometer.watchStepCount((result) => {
+          console.log("Steps updated:", result.steps);
           setCurrentStepCount(result.steps);
         });
 
         return () => subscription && subscription.remove();
+      } catch (error) {
+        console.error("Error setting up pedometer:", error);
+        Alert.alert("Pedometer Error", "Could not start step counting.");
       }
     };
 
@@ -186,6 +245,11 @@ export default function ArtHealthWalk() {
     setModalVisible(false);
   };
 
+  // Add a button to request permissions again if initially denied
+  const requestPermissionsAgain = () => {
+    requestActivityPermission();
+  };
+
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <View style={styles.stepSection}>
@@ -195,23 +259,41 @@ export default function ArtHealthWalk() {
         <View style={styles.metricContainer}>
           <Text style={styles.metricLabel}>Today's Steps</Text>
           {isPedometerAvailable ? (
-            <>
-              <Text style={styles.stepCount}>{currentStepCount}</Text>
-              <Text style={styles.goalText}>Goal: {stepGoal} steps</Text>
-              <View style={styles.progressBar}>
-                <View
-                  style={[
-                    styles.progressFill,
-                    {
-                      width: `${Math.min(
-                        100,
-                        (currentStepCount / stepGoal) * 100
-                      )}%`,
-                    },
-                  ]}
-                />
+            Platform.OS === "android" && !pedometerPermissionGranted ? (
+              // Show permission request button for Android if permission not granted
+              <View>
+                <Text style={styles.error}>
+                  Activity permission required for step counting
+                </Text>
+                <TouchableOpacity
+                  style={styles.permissionButton}
+                  onPress={requestPermissionsAgain}
+                >
+                  <Text style={styles.permissionButtonText}>
+                    Grant Permission
+                  </Text>
+                </TouchableOpacity>
               </View>
-            </>
+            ) : (
+              // Normal step counter display when permissions are granted
+              <>
+                <Text style={styles.stepCount}>{currentStepCount}</Text>
+                <Text style={styles.goalText}>Goal: {stepGoal} steps</Text>
+                <View style={styles.progressBar}>
+                  <View
+                    style={[
+                      styles.progressFill,
+                      {
+                        width: `${Math.min(
+                          100,
+                          (currentStepCount / stepGoal) * 100
+                        )}%`,
+                      },
+                    ]}
+                  />
+                </View>
+              </>
+            )
           ) : (
             <Text style={styles.error}>
               Step counter not available on this device

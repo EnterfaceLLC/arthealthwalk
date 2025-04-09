@@ -176,4 +176,15 @@ export const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "bold",
   },
+  permissionButton: {
+    backgroundColor: "#3498db",
+    padding: 10,
+    borderRadius: 5,
+    marginTop: 10,
+    alignItems: "center",
+  },
+  permissionButtonText: {
+    color: "white",
+    fontWeight: "bold",
+  },
 });
