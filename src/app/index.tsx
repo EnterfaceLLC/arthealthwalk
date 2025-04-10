@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -9,16 +9,35 @@ import {
   Modal,
   Platform,
   PermissionsAndroid,
+  FlatList,
 } from "react-native";
 import * as Location from "expo-location";
 import { Pedometer } from "expo-sensors";
 import { Stack } from "expo-router";
+import { format } from "date-fns";
 
 // Styles
 import { styles } from "../styles/scrnStyles/index";
 
 //Interfaces
 import { Artwork, Coordinates, ArtDetailModalProps } from "../types/artwork";
+
+// Add these new interfaces for step sessions
+interface StepSession {
+  id: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  steps: number;
+  duration: string; // in minutes:seconds format
+  artDiscovered: number;
+}
+
+interface SessionsModalProps {
+  visible: boolean;
+  sessions: StepSession[];
+  onClose: () => void;
+}
 
 // Art locations with coordinates (50 feet = ~0.0095 miles)
 import ART_LOCATIONS from "../../assets/mock/public_art.json";
@@ -65,6 +84,71 @@ const ArtDetailModal: React.FC<ArtDetailModalProps> = ({
   );
 };
 
+// Step Sessions History Modal Component
+const StepSessionsModal: React.FC<SessionsModalProps> = ({
+  visible,
+  sessions,
+  onClose,
+}) => {
+  return (
+    <Modal
+      animationType="slide"
+      transparent={false}
+      visible={visible}
+      onRequestClose={onClose}
+    >
+      <View style={styles.modalContainer}>
+        <View style={styles.modalHeader}>
+          <Text style={styles.modalTitle}>Walking History</Text>
+          <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+            <Text style={styles.closeButtonText}>✕</Text>
+          </TouchableOpacity>
+        </View>
+        
+        {sessions.length > 0 ? (
+          <FlatList
+            data={sessions}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => (
+              <View style={styles.sessionItem}>
+                <Text style={styles.sessionDate}>{item.date}</Text>
+                <View style={styles.sessionDetails}>
+                  <View style={styles.sessionDetailRow}>
+                    <Text style={styles.sessionDetailLabel}>Time:</Text>
+                    <Text style={styles.sessionDetailValue}>
+                      {item.startTime} - {item.endTime}
+                    </Text>
+                  </View>
+                  <View style={styles.sessionDetailRow}>
+                    <Text style={styles.sessionDetailLabel}>Duration:</Text>
+                    <Text style={styles.sessionDetailValue}>{item.duration}</Text>
+                  </View>
+                  <View style={styles.sessionDetailRow}>
+                    <Text style={styles.sessionDetailLabel}>Steps:</Text>
+                    <Text style={styles.sessionDetailValue}>{item.steps}</Text>
+                  </View>
+                  <View style={styles.sessionDetailRow}>
+                    <Text style={styles.sessionDetailLabel}>Art Discovered:</Text>
+                    <Text style={styles.sessionDetailValue}>{item.artDiscovered}</Text>
+                  </View>
+                </View>
+              </View>
+            )}
+          />
+        ) : (
+          <Text style={styles.emptySessionsText}>
+            You haven't saved any walking sessions yet. Start exploring to track your steps!
+          </Text>
+        )}
+
+        <TouchableOpacity style={styles.closeModalButton} onPress={onClose}>
+          <Text style={styles.closeModalButtonText}>Close</Text>
+        </TouchableOpacity>
+      </View>
+    </Modal>
+  );
+};
+
 export default function ArtHealthWalk() {
   // Step counter state
   const [currentStepCount, setCurrentStepCount] = useState(0);
@@ -73,6 +157,14 @@ export default function ArtHealthWalk() {
   const [pedometerPermissionGranted, setPedometerPermissionGranted] =
     useState(false);
 
+  // Session tracking state
+  const [isSessionActive, setIsSessionActive] = useState(false);
+  const [sessionStartTime, setSessionStartTime] = useState<Date | null>(null);
+  const [sessionStartSteps, setSessionStartSteps] = useState(0);
+  const [savedSessions, setSavedSessions] = useState<StepSession[]>([]);
+  const [sessionsModalVisible, setSessionsModalVisible] = useState(false);
+  const [sessionArtDiscovered, setSessionArtDiscovered] = useState<Set<string>>(new Set());
+
   // Location state
   const [nearestArt, setNearestArt] = useState<Artwork | null>(null);
   const [visitedArt, setVisitedArt] = useState<Artwork[]>([]);
@@ -80,6 +172,9 @@ export default function ArtHealthWalk() {
   // Modal state
   const [selectedArt, setSelectedArt] = useState<Artwork | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
+  
+  // Reference to store pedometer subscription
+  const pedometerSubscriptionRef = useRef<any>(null);
 
   // Check if user is within 50 feet of artwork
   const isWithin50Feet = (loc1: Coordinates, loc2: Coordinates): boolean => {
@@ -94,6 +189,7 @@ export default function ArtHealthWalk() {
   const requestActivityPermission = async () => {
     if (Platform.OS !== "android") {
       // iOS doesn't need explicit permission for pedometer
+      setPedometerPermissionGranted(true);
       return true;
     }
 
@@ -128,6 +224,70 @@ export default function ArtHealthWalk() {
     }
   };
 
+  // Calculate session duration in minutes:seconds format
+  const calculateSessionDuration = (start: Date, end: Date): string => {
+    const durationMs = end.getTime() - start.getTime();
+    const minutes = Math.floor(durationMs / 60000);
+    const seconds = Math.floor((durationMs % 60000) / 1000);
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  };
+
+  // Start a new walking session
+  const startWalkingSession = () => {
+    if (!isPedometerAvailable || (Platform.OS === "android" && !pedometerPermissionGranted)) {
+      Alert.alert(
+        "Cannot Start Session", 
+        "Step counting is not available. Please grant permissions first."
+      );
+      return;
+    }
+
+    setSessionStartTime(new Date());
+    setSessionStartSteps(currentStepCount);
+    setSessionArtDiscovered(new Set());
+    setIsSessionActive(true);
+    
+    Alert.alert("Session Started", "Your walking session has begun. Explore and discover art!");
+  };
+
+  // End current walking session
+  const endWalkingSession = () => {
+    if (!sessionStartTime) return;
+    
+    const endTime = new Date();
+    const sessionSteps = currentStepCount - sessionStartSteps;
+    const duration = calculateSessionDuration(sessionStartTime, endTime);
+    
+    // Create new session object
+    const newSession: StepSession = {
+      id: Date.now().toString(),
+      date: format(endTime, "MMMM d, yyyy"),
+      startTime: format(sessionStartTime, "h:mm a"),
+      endTime: format(endTime, "h:mm a"),
+      steps: sessionSteps,
+      duration,
+      artDiscovered: sessionArtDiscovered.size,
+    };
+    
+    // Add to saved sessions
+    setSavedSessions(prevSessions => [newSession, ...prevSessions]);
+    
+    // Reset session state
+    setIsSessionActive(false);
+    setSessionStartTime(null);
+    setSessionStartSteps(0);
+    setSessionArtDiscovered(new Set());
+    
+    Alert.alert(
+      "Session Saved", 
+      `You walked ${sessionSteps} steps in ${duration} and discovered ${sessionArtDiscovered.size} art pieces.`,
+      [
+        { text: "View History", onPress: () => setSessionsModalVisible(true) },
+        { text: "OK" }
+      ]
+    );
+  };
+
   // Initialize pedometer
   useEffect(() => {
     const setupPedometer = async () => {
@@ -153,7 +313,13 @@ export default function ArtHealthWalk() {
           setCurrentStepCount(result.steps);
         });
 
-        return () => subscription && subscription.remove();
+        pedometerSubscriptionRef.current = subscription;
+
+        return () => {
+          if (pedometerSubscriptionRef.current) {
+            pedometerSubscriptionRef.current.remove();
+          }
+        };
       } catch (error) {
         console.error("Error setting up pedometer:", error);
         Alert.alert("Pedometer Error", "Could not start step counting.");
@@ -161,7 +327,7 @@ export default function ArtHealthWalk() {
     };
 
     setupPedometer();
-  }, []);
+  }, [pedometerPermissionGranted]);
 
   // Initialize location tracking
   useEffect(() => {
@@ -200,6 +366,15 @@ export default function ArtHealthWalk() {
               if (!visitedArt.some((item) => item.id === art.id)) {
                 if (fullArtDetails) {
                   setVisitedArt((prev) => [...prev, fullArtDetails]);
+
+                  // If session is active, add to session discoveries
+                  if (isSessionActive) {
+                    setSessionArtDiscovered(prev => {
+                      const updated = new Set(prev);
+                      updated.add(fullArtDetails.id.toString());
+                      return updated;
+                    });
+                  }
                 }
 
                 // Alert user about art discovery and encourage walking
@@ -232,7 +407,7 @@ export default function ArtHealthWalk() {
 
     startTracking();
     return () => locationSubscription?.remove();
-  }, [nearestArt, visitedArt, currentStepCount]);
+  }, [nearestArt, visitedArt, currentStepCount, isSessionActive]);
 
   // Show art detail modal
   const showArtDetail = (art: Artwork) => {
@@ -248,6 +423,16 @@ export default function ArtHealthWalk() {
   // Add a button to request permissions again if initially denied
   const requestPermissionsAgain = () => {
     requestActivityPermission();
+  };
+
+  // Show sessions history modal
+  const showSessionsHistory = () => {
+    setSessionsModalVisible(true);
+  };
+
+  // Close sessions history modal
+  const closeSessionsHistory = () => {
+    setSessionsModalVisible(false);
   };
 
   return (
@@ -291,6 +476,39 @@ export default function ArtHealthWalk() {
                       },
                     ]}
                   />
+                </View>
+                
+                {/* Session Controls */}
+                <View style={styles.sessionControls}>
+                  {isSessionActive ? (
+                    <>
+                      <Text style={styles.sessionActiveText}>
+                        Session Active: {sessionStartSteps > 0 ? (currentStepCount - sessionStartSteps) : currentStepCount} steps
+                      </Text>
+                      <TouchableOpacity
+                        style={[styles.sessionButton, styles.endSessionButton]}
+                        onPress={endWalkingSession}
+                      >
+                        <Text style={styles.sessionButtonText}>End Session</Text>
+                      </TouchableOpacity>
+                    </>
+                  ) : (
+                    <TouchableOpacity
+                      style={[styles.sessionButton, styles.startSessionButton]}
+                      onPress={startWalkingSession}
+                    >
+                      <Text style={styles.sessionButtonText}>Start Walking Session</Text>
+                    </TouchableOpacity>
+                  )}
+                  
+                  {savedSessions.length > 0 && !isSessionActive && (
+                    <TouchableOpacity
+                      style={[styles.sessionButton, styles.historyButton]}
+                      onPress={showSessionsHistory}
+                    >
+                      <Text style={styles.sessionButtonText}>View History</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
               </>
             )
@@ -361,6 +579,13 @@ export default function ArtHealthWalk() {
         visible={modalVisible}
         art={selectedArt}
         onClose={closeArtDetail}
+      />
+
+      {/* Step Sessions History Modal */}
+      <StepSessionsModal
+        visible={sessionsModalVisible}
+        sessions={savedSessions}
+        onClose={closeSessionsHistory}
       />
 
       <Stack.Screen

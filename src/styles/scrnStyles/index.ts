@@ -187,4 +187,76 @@ export const styles = StyleSheet.create({
     color: "white",
     fontWeight: "bold",
   },
+
+  // Session controls
+  sessionControls: {
+    marginTop: 20,
+    width: "100%",
+  },
+  sessionButton: {
+    padding: 12,
+    borderRadius: 8,
+    alignItems: "center",
+    marginVertical: 5,
+  },
+  startSessionButton: {
+    backgroundColor: "#2ecece",
+  },
+  endSessionButton: {
+    backgroundColor: "#e74c3c",
+  },
+  historyButton: {
+    backgroundColor: "#3498db",
+  },
+  sessionButtonText: {
+    color: "white",
+    fontWeight: "bold",
+    fontSize: 16,
+  },
+  sessionActiveText: {
+    textAlign: "center",
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#2ecc71",
+    marginBottom: 10,
+  },
+
+  // Session history modal styles
+  sessionItem: {
+    backgroundColor: "#f5f5f5",
+    borderRadius: 8,
+    padding: 15,
+    marginBottom: 15,
+  },
+  sessionDate: {
+    fontSize: 18,
+    fontWeight: "bold",
+    marginBottom: 10,
+  },
+  sessionDetails: {
+    backgroundColor: "white",
+    borderRadius: 5,
+    padding: 10,
+  },
+  sessionDetailRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingVertical: 5,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f0f0f0",
+  },
+  sessionDetailLabel: {
+    fontWeight: "500",
+    color: "#666",
+  },
+  sessionDetailValue: {
+    fontWeight: "600",
+  },
+  emptySessionsText: {
+    textAlign: "center",
+    fontSize: 16,
+    color: "#666",
+    fontStyle: "italic",
+    paddingVertical: 30,
+  },
 });
