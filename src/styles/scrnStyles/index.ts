@@ -1,6 +1,6 @@
 import { StyleSheet } from "react-native";
-import { Dimensions } from "react-native";
-import { Platform } from "react-native";
+// import { Dimensions } from "react-native";
+// import { Platform } from "react-native";
 
 export const styles = StyleSheet.create({
   container: {
@@ -258,5 +258,57 @@ export const styles = StyleSheet.create({
     color: "#666",
     fontStyle: "italic",
     paddingVertical: 30,
+  },
+
+  // Add these styles to your styles file
+  goalContainer: {
+    alignItems: "center",
+    marginVertical: 5,
+  },
+  goalDisplay: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 8,
+  },
+  editGoalText: {
+    fontSize: 12,
+    color: "#3498db",
+    marginLeft: 5,
+    fontStyle: "italic",
+  },
+  goalEditContainer: {
+    width: "80%",
+    marginVertical: 5,
+  },
+  goalInput: {
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 5,
+    padding: 8,
+    fontSize: 16,
+    textAlign: "center",
+    backgroundColor: "#fff",
+  },
+  goalEditButtons: {
+    flexDirection: "row",
+    justifyContent: "space-evenly",
+    marginTop: 8,
+  },
+  goalButton: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 5,
+    minWidth: 80,
+    alignItems: "center",
+  },
+  goalSaveButton: {
+    backgroundColor: "#2ecc71",
+  },
+  goalCancelButton: {
+    backgroundColor: "#e74c3c",
+  },
+  goalButtonText: {
+    color: "white",
+    fontWeight: "500",
   },
 });

@@ -10,6 +10,10 @@ import {
   Platform,
   PermissionsAndroid,
   FlatList,
+  TextInput,
+  Pressable,
+  Keyboard,
+  TouchableWithoutFeedback,
 } from "react-native";
 import * as Location from "expo-location";
 import { Pedometer } from "expo-sensors";
@@ -153,7 +157,7 @@ export default function ArtHealthWalk() {
   // Step counter state
   const [currentStepCount, setCurrentStepCount] = useState(0);
   const [isPedometerAvailable, setIsPedometerAvailable] = useState(false);
-  const [stepGoal] = useState(100); // Daily goal
+  const [stepGoal, setStepGoal] = useState(100); // Changed from const to state
   const [pedometerPermissionGranted, setPedometerPermissionGranted] =
     useState(false);
 
@@ -173,6 +177,10 @@ export default function ArtHealthWalk() {
   const [selectedArt, setSelectedArt] = useState<Artwork | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   
+  // Goal editing state
+  const [isEditingGoal, setIsEditingGoal] = useState(false);
+  const [tempStepGoal, setTempStepGoal] = useState("100"); // For text input
+
   // Reference to store pedometer subscription
   const pedometerSubscriptionRef = useRef<any>(null);
 
@@ -435,171 +443,234 @@ export default function ArtHealthWalk() {
     setSessionsModalVisible(false);
   };
 
-  return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <View style={styles.stepSection}>
-        <Text style={styles.title}>Walk of Art</Text>
+  // Start editing step goal
+  const startEditingGoal = () => {
+    setTempStepGoal(stepGoal.toString());
+    setIsEditingGoal(true);
+  };
 
-        {/* Step Counter Section */}
-        <View style={styles.metricContainer}>
-          <Text style={styles.metricLabel}>Today's Steps</Text>
-          {isPedometerAvailable ? (
-            Platform.OS === "android" && !pedometerPermissionGranted ? (
-              // Show permission request button for Android if permission not granted
-              <View>
-                <Text style={styles.error}>
-                  Activity permission required for step counting
-                </Text>
-                <TouchableOpacity
-                  style={styles.permissionButton}
-                  onPress={requestPermissionsAgain}
-                >
-                  <Text style={styles.permissionButtonText}>
-                    Grant Permission
+  // Save step goal
+  const saveStepGoal = () => {
+    const newGoal = parseInt(tempStepGoal, 10);
+    if (!isNaN(newGoal) && newGoal > 0) {
+      setStepGoal(newGoal);
+      setIsEditingGoal(false);
+    } else {
+      setTempStepGoal(stepGoal.toString());
+      Alert.alert("Invalid Goal", "Please enter a positive number.");
+    }
+  };
+
+  // Cancel editing step goal
+  const cancelEditingGoal = () => {
+    setIsEditingGoal(false);
+  };
+
+  return (
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+      <ScrollView contentContainerStyle={styles.container}>
+        <View style={styles.stepSection}>
+          <Text style={styles.title}>Walk of Art</Text>
+
+          {/* Step Counter Section */}
+          <View style={styles.metricContainer}>
+            <Text style={styles.metricLabel}>Today's Steps</Text>
+            {isPedometerAvailable ? (
+              Platform.OS === "android" && !pedometerPermissionGranted ? (
+                // Show permission request button for Android if permission not granted
+                <View>
+                  <Text style={styles.error}>
+                    Activity permission required for step counting
                   </Text>
-                </TouchableOpacity>
-              </View>
-            ) : (
-              // Normal step counter display when permissions are granted
-              <>
-                <Text style={styles.stepCount}>{currentStepCount}</Text>
-                <Text style={styles.goalText}>Goal: {stepGoal} steps</Text>
-                <View style={styles.progressBar}>
-                  <View
-                    style={[
-                      styles.progressFill,
-                      {
-                        width: `${Math.min(
-                          100,
-                          (currentStepCount / stepGoal) * 100
-                        )}%`,
-                      },
-                    ]}
-                  />
+                  <TouchableOpacity
+                    style={styles.permissionButton}
+                    onPress={requestPermissionsAgain}
+                  >
+                    <Text style={styles.permissionButtonText}>
+                      Grant Permission
+                    </Text>
+                  </TouchableOpacity>
                 </View>
-                
-                {/* Session Controls */}
-                <View style={styles.sessionControls}>
-                  {isSessionActive ? (
-                    <>
-                      <Text style={styles.sessionActiveText}>
-                        Session Active: {sessionStartSteps > 0 ? (currentStepCount - sessionStartSteps) : currentStepCount} steps
-                      </Text>
-                      <TouchableOpacity
-                        style={[styles.sessionButton, styles.endSessionButton]}
-                        onPress={endWalkingSession}
-                      >
-                        <Text style={styles.sessionButtonText}>End Session</Text>
-                      </TouchableOpacity>
-                    </>
-                  ) : (
-                    <TouchableOpacity
-                      style={[styles.sessionButton, styles.startSessionButton]}
-                      onPress={startWalkingSession}
-                    >
-                      <Text style={styles.sessionButtonText}>Start Walking Session</Text>
-                    </TouchableOpacity>
-                  )}
+              ) : (
+                // Normal step counter display when permissions are granted
+                <>
+                  <Text style={styles.stepCount}>{currentStepCount}</Text>
                   
-                  {savedSessions.length > 0 && !isSessionActive && (
-                    <TouchableOpacity
-                      style={[styles.sessionButton, styles.historyButton]}
-                      onPress={showSessionsHistory}
-                    >
-                      <Text style={styles.sessionButtonText}>View History</Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-              </>
-            )
+                  {/* Step Goal with Edit Option */}
+                  <View style={styles.goalContainer}>
+                    {isEditingGoal ? (
+                      // Goal editing mode
+                      <View style={styles.goalEditContainer}>
+                        <TextInput
+                          style={styles.goalInput}
+                          value={tempStepGoal}
+                          onChangeText={setTempStepGoal}
+                          keyboardType="numeric"
+                          maxLength={6}
+                          selectTextOnFocus
+                          autoFocus
+                        />
+                        <View style={styles.goalEditButtons}>
+                          <TouchableOpacity 
+                            style={[styles.goalButton, styles.goalSaveButton]} 
+                            onPress={saveStepGoal}
+                          >
+                            <Text style={styles.goalButtonText}>Save</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity 
+                            style={[styles.goalButton, styles.goalCancelButton]} 
+                            onPress={cancelEditingGoal}
+                          >
+                            <Text style={styles.goalButtonText}>Cancel</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    ) : (
+                      // Goal display mode
+                      <Pressable style={styles.goalDisplay} onPress={startEditingGoal}>
+                        <Text style={styles.goalText}>Goal: {stepGoal} steps</Text>
+                        <Text style={styles.editGoalText}>(tap to edit)</Text>
+                      </Pressable>
+                    )}
+                  </View>
+                  
+                  <View style={styles.progressBar}>
+                    <View
+                      style={[
+                        styles.progressFill,
+                        {
+                          width: `${Math.min(
+                            100,
+                            (currentStepCount / stepGoal) * 100
+                          )}%`,
+                        },
+                      ]}
+                    />
+                  </View>
+                  
+                  {/* Session Controls remain unchanged */}
+                  <View style={styles.sessionControls}>
+                    {isSessionActive ? (
+                      <>
+                        <Text style={styles.sessionActiveText}>
+                          Session Active: {sessionStartSteps > 0 ? (currentStepCount - sessionStartSteps) : currentStepCount} steps
+                        </Text>
+                        <TouchableOpacity
+                          style={[styles.sessionButton, styles.endSessionButton]}
+                          onPress={endWalkingSession}
+                        >
+                          <Text style={styles.sessionButtonText}>End Session</Text>
+                        </TouchableOpacity>
+                      </>
+                    ) : (
+                      <TouchableOpacity
+                        style={[styles.sessionButton, styles.startSessionButton]}
+                        onPress={startWalkingSession}
+                      >
+                        <Text style={styles.sessionButtonText}>Start Walking Session</Text>
+                      </TouchableOpacity>
+                    )}
+                    
+                    {savedSessions.length > 0 && !isSessionActive && (
+                      <TouchableOpacity
+                        style={[styles.sessionButton, styles.historyButton]}
+                        onPress={showSessionsHistory}
+                      >
+                        <Text style={styles.sessionButtonText}>View History</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                </>
+              )
+            ) : (
+              <Text style={styles.error}>
+                Step counter not available on this device
+              </Text>
+            )}
+          </View>
+        </View>
+
+        {/* Art Proximity Section */}
+        <View style={styles.artSection}>
+          <Text style={styles.sectionTitle}>Nearby Art</Text>
+          {nearestArt ? (
+            <TouchableOpacity
+              style={styles.artCard}
+              onPress={() => showArtDetail(nearestArt)}
+            >
+              <Text style={styles.artName}>{nearestArt.name}</Text>
+              <Text style={styles.artArtist}>by {nearestArt.artist}</Text>
+              <Text style={styles.proximityText}>You are within 50 feet!</Text>
+              <Text style={styles.viewDetailsText}>Tap to view details</Text>
+            </TouchableOpacity>
           ) : (
-            <Text style={styles.error}>
-              Step counter not available on this device
+            <Text style={styles.hint}>
+              Walk around to discover public art nearby
             </Text>
           )}
         </View>
-      </View>
 
-      {/* Art Proximity Section */}
-      <View style={styles.artSection}>
-        <Text style={styles.sectionTitle}>Nearby Art</Text>
-        {nearestArt ? (
-          <TouchableOpacity
-            style={styles.artCard}
-            onPress={() => showArtDetail(nearestArt)}
-          >
-            <Text style={styles.artName}>{nearestArt.name}</Text>
-            <Text style={styles.artArtist}>by {nearestArt.artist}</Text>
-            <Text style={styles.proximityText}>You are within 50 feet!</Text>
-            <Text style={styles.viewDetailsText}>Tap to view details</Text>
-          </TouchableOpacity>
-        ) : (
-          <Text style={styles.hint}>
-            Walk around to discover public art nearby
+        {/* Art Discovery History */}
+        <View style={styles.historySection}>
+          <Text style={styles.sectionTitle}>
+            Art Discoveries ({visitedArt.length})
           </Text>
-        )}
-      </View>
-
-      {/* Art Discovery History */}
-      <View style={styles.historySection}>
-        <Text style={styles.sectionTitle}>
-          Art Discoveries ({visitedArt.length})
-        </Text>
-        {visitedArt.length > 0 ? (
-          visitedArt.map((art) => (
-            <TouchableOpacity
-              key={art.id}
-              style={styles.historyItem}
-              onPress={() => showArtDetail(art)}
-            >
-              <View style={styles.historyItemContent}>
-                {art.image && (
-                  <Image
-                    source={{ uri: art?.image }}
-                    style={styles.historyItemImage}
-                  />
-                )}
-                <View style={styles.historyItemText}>
-                  <Text style={styles.historyItemTitle}>{art.name}</Text>
-                  <Text style={styles.historyItemArtist}>by {art.artist}</Text>
-                  <Text style={styles.viewDetailsText}>
-                    Tap to view details
-                  </Text>
+          {visitedArt.length > 0 ? (
+            visitedArt.map((art) => (
+              <TouchableOpacity
+                key={art.id}
+                style={styles.historyItem}
+                onPress={() => showArtDetail(art)}
+              >
+                <View style={styles.historyItemContent}>
+                  {art.image && (
+                    <Image
+                      source={{ uri: art?.image }}
+                      style={styles.historyItemImage}
+                    />
+                  )}
+                  <View style={styles.historyItemText}>
+                    <Text style={styles.historyItemTitle}>{art.name}</Text>
+                    <Text style={styles.historyItemArtist}>by {art.artist}</Text>
+                    <Text style={styles.viewDetailsText}>
+                      Tap to view details
+                    </Text>
+                  </View>
                 </View>
-              </View>
-            </TouchableOpacity>
-          ))
-        ) : (
-          <Text style={styles.hint}>Start walking to discover art!</Text>
-        )}
-      </View>
+              </TouchableOpacity>
+            ))
+          ) : (
+            <Text style={styles.hint}>Start walking to discover art!</Text>
+          )}
+        </View>
 
-      {/* Art Detail Modal */}
-      <ArtDetailModal
-        visible={modalVisible}
-        art={selectedArt}
-        onClose={closeArtDetail}
-      />
+        {/* Art Detail Modal */}
+        <ArtDetailModal
+          visible={modalVisible}
+          art={selectedArt}
+          onClose={closeArtDetail}
+        />
 
-      {/* Step Sessions History Modal */}
-      <StepSessionsModal
-        visible={sessionsModalVisible}
-        sessions={savedSessions}
-        onClose={closeSessionsHistory}
-      />
+        {/* Step Sessions History Modal */}
+        <StepSessionsModal
+          visible={sessionsModalVisible}
+          sessions={savedSessions}
+          onClose={closeSessionsHistory}
+        />
 
-      <Stack.Screen
-        options={{
-          title: "Art Health Walk 2.0",
-          headerStyle: {
-            backgroundColor: "#AB274F",
-          },
-          headerTintColor: "#fff",
-          headerTitleStyle: {
-            fontWeight: "bold",
-          },
-        }}
-      />
-    </ScrollView>
+        <Stack.Screen
+          options={{
+            title: "Art Health Walk 2.0",
+            headerStyle: {
+              backgroundColor: "#AB274F",
+            },
+            headerTintColor: "#fff",
+            headerTitleStyle: {
+              fontWeight: "bold",
+            },
+          }}
+        />
+      </ScrollView>
+    </TouchableWithoutFeedback>
   );
 }
